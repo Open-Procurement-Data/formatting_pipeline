@@ -29,14 +29,15 @@ def start_logs(dir_input, dir_output, printing):
     Reading the cpv_numbers
     '''
     # check for output dir / create one if it does not exist
-    try:
-        os.makedirs(dir_output, exist_ok=True)
-        if printing is True:
-            print(f"Output directory created or already exists: {dir_output}")
-    except Exception as e:
-        if printing is True:
-            print(f"Error creating output directory: {e}")
-        sys.exit(1)
+    if dir_output is not None:
+        try:
+            os.makedirs(dir_output, exist_ok=True)
+            if printing is True:
+                print(f"Output directory created or already exists: {dir_output}")
+        except Exception as e:
+            if printing is True:
+                print(f"Error creating output directory: {e}")
+            sys.exit(1)
 
     # check input dir
     data_dir = check_dir(dir_input, printing)

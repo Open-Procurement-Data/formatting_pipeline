@@ -153,6 +153,33 @@ def get_new_dataframes(dataframes, cpv_input_dir, output_dir=None, printing=Fals
     bescha_new["contracts_value_amount"] = dataframes["overView_Bescha"]["value.amount_contracts_1"].copy()
     ted_new["contracts_value_amount"] = dataframes["overView_Ted"]["total-value"].copy() 
 
+    bescha_new["contracts_value_amount"] = dataframes["overView_Bescha"]["description_tender.lots_1"].copy()
+    ted_new["24_Lot_description"] = dataframes["overView_Ted"]["BT-24-Lot"].copy() 
+
+    bescha_new["publication_number"] = None # There is no publication numbers, only some id. Not sure if its the same
+    ted_new["publication_number"] = dataframes["overView_Ted"]["publicationNumber"].copy() 
+
+    bescha_new["BT-05(a)-notice"] = dataframes["overView_Bescha"]["tender.awardPeriod.endDate"].copy() # This has the same format, but I am not sure, if it has the same date
+    ted_new["BT-05(a)-notice"] = dataframes["overView_Ted"]["BT-05(a)-notice"].copy() # not sure which date this is.
+    
+    bescha_new["company_size"] = None # There is no company size in bescha
+    ted_new["company_size"] = dataframes["overView_Ted"]["BT-165-Organization-Company"].copy() 
+
+    bescha_new["BT-262-Lot"] = None # There are no other cpv numbers than classification.id_tender.items_1
+    ted_new["BT-262-Lot"] = dataframes["overView_Ted"]["BT-262-Lot"].copy() 
+
+    bescha_new["BT-27-Procedure"] = None # There is no estimated value
+    ted_new["BT-27-Procedure"] = dataframes["overView_Ted"]["BT-27-Procedure"].copy() # This is estimated-value
+
+    bescha_new["BT-27-Procedure"] = None # There is no winner in Bescha. Only suppliers, that i think are the winner. But tere can be multiple suppliers?
+    ted_new["winner_name"] = dataframes["overView_Ted"]["winner-name"].copy()
+
+    bescha_new["BT-27-Procedure"] = None # There is no winner in Bescha.
+    ted_new["winner_post_code"] = dataframes["overView_Ted"]["winner-post-code"].copy()
+
+    bescha_new["BT-27-Procedure"] = None # There is no winner in Bescha.
+    ted_new["winner_size"] = dataframes["overView_Ted"]["winner-size"].copy()
+
     if printing is True:
         print(f"bescha_new has following columns: {bescha_new.keys()}")
         print(f"ted_new has following columns: {ted_new.keys()}")
