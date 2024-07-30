@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import sys
 from datetime import datetime
+import time
 
 def get_cpv(cpv_input, dir_output, printing):
     '''
@@ -10,14 +11,15 @@ def get_cpv(cpv_input, dir_output, printing):
     Reading the cpv_numbers
     '''
     # check for output dir / create one if it does not exist
-    try:
-        os.makedirs(dir_output, exist_ok=True)
-        if printing is True:
-            print(f"Output directory created or already exists: {dir_output}")
-    except Exception as e:
-        if printing is True:
-            print(f"Error creating output directory: {e}")
-        sys.exit(1)
+    if dir_output is not None:
+        try:
+            os.makedirs(dir_output, exist_ok=True)
+            if printing is True:
+                print(f"Output directory created or already exists: {dir_output}")
+        except Exception as e:
+            if printing is True:
+                print(f"Error creating output directory: {e}")
+            sys.exit(1)
 
     try:
         cvp_numbers = pd.read_excel(cpv_input, usecols=['CODE', 'DE'])
@@ -110,6 +112,36 @@ def save_new_files(dataframe, name, dir_output, printing):
             print(f"Invalid DataFrame for key {name}.")
         sys.exit(1)
 
+def extract_text(entry, lang):
+    if isinstance(entry, dict) and lang in entry:
+        if isinstance(entry[lang], list) and len(entry[lang]) > 0:
+            return entry[lang][0] 
+        else:
+            return entry[lang]
+    elif isinstance(entry, list):
+            return entry[0]
+    return entry
+
+def formatting_ted(dataframe, printing):
+    for column in dataframe.keys():
+        if printing is True:
+            print(f"Starting extraction for column: {column}")
+
+        start_time = time.time()
+        if column == "buyer_locality":
+            dataframe[column] = dataframe[column].apply(lambda x: extract_text(x, 'mul'))
+        else:
+            dataframe[column] = dataframe[column].apply(lambda x: extract_text(x, 'deu'))
+        end_time = time.time()
+
+        elapsed_time = end_time - start_time
+        if printing is True:
+            print(f"Time taken for extract_2 with column {column}: {elapsed_time:.2f} seconds")
+
+    return dataframe
+        
+
+
 def get_new_dataframes(dataframes, cpv_input_dir, output_dir=None, printing=False):
     
     if not isinstance(printing, bool):
@@ -139,7 +171,7 @@ def get_new_dataframes(dataframes, cpv_input_dir, output_dir=None, printing=Fals
     ted_new["tender_cpv_category"] = dataframes["overView_Ted"]["classification"].copy()
 
     bescha_new["tender_numberOfTenderers"] = dataframes["overView_Bescha"]["tender.numberOfTenderers"].copy()
-    #ted_new["tender_numberOfTenderers"] = dataframes["overView_Ted"]["value.amount_contracts_1"].copy() # No column for that!
+    ted_new["tender_numberOfTenderers"] = None # No column for that!
 
     bescha_new["buyer_name"] = dataframes["overView_Bescha"]["tender.procuringEntity.name"].copy()
     ted_new["buyer_name"] = dataframes["overView_Ted"]["organisation-name-buyer"].copy() 
@@ -184,7 +216,9 @@ def get_new_dataframes(dataframes, cpv_input_dir, output_dir=None, printing=Fals
         print(f"bescha_new has following columns: {bescha_new.keys()}")
         print(f"ted_new has following columns: {ted_new.keys()}")
 
+    ted_new = formatting_ted(ted_new, printing)
+
     save_new_files(bescha_new, "bescha", output_dir, printing)
     save_new_files(ted_new, "ted", output_dir, printing)
 
-    return bescha_new, ted_new
+    return bescha_new, ted_new, cvp_numbers

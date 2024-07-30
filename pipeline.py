@@ -170,7 +170,6 @@ def formatting_dataframe(df, list_of_columns, printing):
     
     return result_df
 
-
 def get_dataframes(data_dir, output_dir=None, printing=False):
     '''
     Processes data and returns DataFrames.
