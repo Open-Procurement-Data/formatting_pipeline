@@ -4,34 +4,38 @@ import sys
 from datetime import datetime
 import time
 
-def get_cpv(cpv_input, dir_output, printing):
+DATAFRAMES = None
+CPV_DIR = None
+OUTPUT_DIR = None
+PRINTING = False
+
+def check_dir_get_cpv():
     '''
-    Beginning Logs for more info.
     Checking if the given paths are correct.
     Reading the cpv_numbers
     '''
     # check for output dir / create one if it does not exist
-    if dir_output is not None:
+    if OUTPUT_DIR is not None:
         try:
-            os.makedirs(dir_output, exist_ok=True)
-            if printing is True:
-                print(f"Output directory created or already exists: {dir_output}")
+            os.makedirs(OUTPUT_DIR, exist_ok=True)
+            if PRINTING:
+                print(f"Output directory created or already exists: {OUTPUT_DIR}")
         except Exception as e:
-            if printing is True:
+            if PRINTING:
                 print(f"Error creating output directory: {e}")
             sys.exit(1)
 
     try:
-        cvp_numbers = pd.read_excel(cpv_input, usecols=['CODE', 'DE'])
-        if printing is True:
-            print(f"Processed {cpv_input}")
+        cvp_numbers = pd.read_excel(CPV_DIR, usecols=['CODE', 'DE'])
+        if PRINTING:
+            print(f"Processed {CPV_DIR}")
     except Exception as e:
-        if printing is True:
-            print(f"Error processing file {cpv_input}: {e}")
+        if PRINTING:
+            print(f"Error processing file {CPV_DIR}: {e}")
 
     return cvp_numbers
 
-def extract_codes(df, code_column): 
+def extract_cpv_codes(df, code_column): 
     """
     Extract divisions, groups, classes, and categories from the given DataFrame based on the code rules.
     
@@ -73,7 +77,10 @@ def extract_codes(df, code_column):
     
     return df
 
-def get_classification(cpv_numbers_list, cvp_numbers, classification = "division"):
+def get_cpv_classification(cpv_numbers_list, cvp_numbers, classification = "division"):
+    '''
+    Retrieves CPV classification descriptions based on a list of CPV numbers.
+    '''
     kurzel = []
     intermediate_cvp = cvp_numbers[cvp_numbers['classification'] == classification] # or 'division', 'group', 'class', 'category', 'subclass'
 
@@ -85,34 +92,37 @@ def get_classification(cpv_numbers_list, cvp_numbers, classification = "division
                     kurzel.append(division_desc)
     return list(set(kurzel))
 
-def save_new_files(dataframe, name, dir_output, printing):
+def save_new_files(dataframe, name):
     '''
     Saving the reformatted pandas.DataFrame to a csv.
     Only if a output directory path was given.
     '''
-    if dir_output is None:
-        if printing is True:
+    if OUTPUT_DIR is None:
+        if PRINTING:
             print("No output directory specified. Skipping saving the DataFrame.")
         return
     
     if isinstance(dataframe, pd.DataFrame):
         current_date = datetime.now().strftime("%Y_%m_%d")
-        csv_file_name = f"{current_date}_{name}.csv"
-        csv_file_path = os.path.join(dir_output, csv_file_name)
+        json_file_name = f"{current_date}_{name}.json"
+        json_file_path = os.path.join(OUTPUT_DIR, json_file_name)
         try:
-            dataframe.to_csv(csv_file_path, index=False)
-            if printing is True:
-                print(f"Saved DataFrame to {csv_file_path}")
+            dataframe.to_json(json_file_path, orient='records')
+            if PRINTING:
+                print(f"Saved DataFrame to {json_file_path}")
         except Exception as e:
-            if printing is True:
-                print(f"Error saving DataFrame to CSV: {e}")
+            if PRINTING:
+                print(f"Error saving DataFrame to JSON: {e}")
             sys.exit(1)
     else:
-        if printing is True:
+        if PRINTING:
             print(f"Invalid DataFrame for key {name}.")
         sys.exit(1)
 
-def extract_text(entry, lang):
+def extract_entry(entry, lang):
+    '''
+    eytracting the entry of a column form a list or dictionary.
+    '''
     if isinstance(entry, dict) and lang in entry:
         if isinstance(entry[lang], list) and len(entry[lang]) > 0:
             return entry[lang][0] 
@@ -122,36 +132,51 @@ def extract_text(entry, lang):
             return entry[0]
     return entry
 
-def formatting_ted(dataframe, printing):
+
+def formatting_ted(dataframe):
+    '''
+    Formats the TED dataframe by extracting and transforming data from each column.
+    '''
     for column in dataframe.keys():
-        if printing is True:
+        if PRINTING:
             print(f"Starting extraction for column: {column}")
 
         start_time = time.time()
         if column == "buyer_locality":
-            dataframe[column] = dataframe[column].apply(lambda x: extract_text(x, 'mul'))
+            dataframe[column] = dataframe[column].apply(lambda x: extract_entry(x, 'mul'))
         else:
-            dataframe[column] = dataframe[column].apply(lambda x: extract_text(x, 'deu'))
+            dataframe[column] = dataframe[column].apply(lambda x: extract_entry(x, 'deu'))
         end_time = time.time()
 
         elapsed_time = end_time - start_time
-        if printing is True:
+        if PRINTING:
             print(f"Time taken for extract_2 with column {column}: {elapsed_time:.2f} seconds")
 
     return dataframe
         
-
-
-def get_new_dataframes(dataframes, cpv_input_dir, output_dir=None, printing=False):
+        
+def get_equal_dataframes(dataframes, cpv_input_dir, output_dir=None, printing=False):
     
-    if not isinstance(printing, bool):
+    global DATAFRAMES, CPV_DIR, OUTPUT_DIR, PRINTING
+    DATAFRAMES = dataframes
+    CPV_DIR = cpv_input_dir
+    OUTPUT_DIR = output_dir
+    PRINTING = printing
+
+    if DATAFRAMES == None:
+        raise ValueError("The 'dataframes' parameter must be a given.")
+
+    if CPV_DIR == None:
+        raise ValueError("The 'cpv_input_dir' parameter must be a given.")
+
+    if not isinstance(PRINTING, bool):
         raise ValueError("The 'printing' parameter must be a boolean value.")
     
-    cvp_numbers = get_cpv(cpv_input_dir, output_dir, printing)
+    cvp_numbers = check_dir_get_cpv()
 
-    df = extract_codes(cvp_numbers, 'CODE')
+    df = extract_cpv_codes(cvp_numbers, 'CODE')
 
-    dataframes["overView_Ted"]["classification"] = dataframes["overView_Ted"]["classification-cpv"].apply(lambda x: get_classification(x, cvp_numbers) if isinstance(x, list) else [])
+    dataframes["overView_Ted"]["classification"] = dataframes["overView_Ted"]["classification-cpv"].apply(lambda x: get_cpv_classification(x, cvp_numbers) if isinstance(x, list) else [])
 
     bescha_new = pd.DataFrame()
     ted_new = pd.DataFrame()
@@ -203,22 +228,27 @@ def get_new_dataframes(dataframes, cpv_input_dir, output_dir=None, printing=Fals
     bescha_new["BT-27-Procedure"] = None # There is no estimated value
     ted_new["BT-27-Procedure"] = dataframes["overView_Ted"]["BT-27-Procedure"].copy() # This is estimated-value
 
-    bescha_new["BT-27-Procedure"] = None # There is no winner in Bescha. Only suppliers, that i think are the winner. But tere can be multiple suppliers?
+    bescha_new["winner_name"] = None # There is no winner in Bescha. Only suppliers, that i think are the winner. But tere can be multiple suppliers?
     ted_new["winner_name"] = dataframes["overView_Ted"]["winner-name"].copy()
 
-    bescha_new["BT-27-Procedure"] = None # There is no winner in Bescha.
+    bescha_new["winner_post_code"] = None # There is no winner in Bescha.
     ted_new["winner_post_code"] = dataframes["overView_Ted"]["winner-post-code"].copy()
 
-    bescha_new["BT-27-Procedure"] = None # There is no winner in Bescha.
+    bescha_new["winner_size"] = None # There is no winner in Bescha.
     ted_new["winner_size"] = dataframes["overView_Ted"]["winner-size"].copy()
 
-    if printing is True:
+    if PRINTING:
         print(f"bescha_new has following columns: {bescha_new.keys()}")
         print(f"ted_new has following columns: {ted_new.keys()}")
 
-    ted_new = formatting_ted(ted_new, printing)
+    ted_new = formatting_ted(ted_new)
 
-    save_new_files(bescha_new, "bescha", output_dir, printing)
-    save_new_files(ted_new, "ted", output_dir, printing)
+    save_new_files(bescha_new, "bescha")
+    save_new_files(ted_new, "ted")
 
     return bescha_new, ted_new, cvp_numbers
+
+
+
+if __name__ == "__main__":
+    get_equal_dataframes(DATAFRAMES, CPV_DIR, OUTPUT_DIR, PRINTING)

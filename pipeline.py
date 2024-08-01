@@ -6,51 +6,46 @@ import sys
 import time
 from datetime import datetime
 
-def check_dir(directory, printing):
-    '''
-    Checking if rhe given paths are correct
-    '''
-    try:
-        dir = directory
-        if not os.path.isdir(dir):
-            raise ValueError(f"Input directory does not exist: {dir}")
-        if printing is True:
-            print(f"Input directory exists: {dir}")
-        return dir
-    except Exception as e:
-        if printing is True:
-            print(f"Error accessing input directory: {e}")
-        sys.exit(1)
+DATA_DIR = None
+OUTPUT_DIR = None
+PRINTING = False
 
-def start_logs(dir_input, dir_output, printing):
+def check_paths():
     '''
     Beginning Logs for more info.
     Checking if the given paths are correct.
-    Reading the cpv_numbers
     '''
     # check for output dir / create one if it does not exist
-    if dir_output is not None:
+    if OUTPUT_DIR is not None:
         try:
-            os.makedirs(dir_output, exist_ok=True)
-            if printing is True:
-                print(f"Output directory created or already exists: {dir_output}")
+            os.makedirs(OUTPUT_DIR, exist_ok=True)
+            if PRINTING:
+                print(f"Output directory created or already exists: {OUTPUT_DIR}")
         except Exception as e:
-            if printing is True:
+            if PRINTING:
                 print(f"Error creating output directory: {e}")
             sys.exit(1)
 
     # check input dir
-    data_dir = check_dir(dir_input, printing)
+    try:
+        data_dir = DATA_DIR
+        if not os.path.isdir(data_dir):
+            raise ValueError(f"Input directory does not exist: {data_dir}")
+        if PRINTING:
+            print(f"Input directory exists: {data_dir}")
+        return data_dir
+    except Exception as e:
+        if PRINTING:
+            print(f"Error accessing input directory: {e}")
+        sys.exit(1)
 
-    return data_dir
-
-def save_new_files(dataframes, dir_output, printing):
+def save_new_files(dataframes):
     '''
     Saving the reformatted pandas.DataFrame to a csv.
     Only if a output directory path was given.
     '''
-    if dir_output is None:
-        if printing is True:
+    if OUTPUT_DIR is None:
+        if PRINTING:
             print("No output directory specified. Skipping saving the DataFrame.")
         return
     
@@ -60,45 +55,45 @@ def save_new_files(dataframes, dir_output, printing):
                 current_date = datetime.now().strftime("%Y_%m_%d")
                 # CSV
                 csv_file_name = f"{current_date}_{frame_name}.csv"
-                csv_file_path = os.path.join(dir_output, csv_file_name)
+                csv_file_path = os.path.join(OUTPUT_DIR, csv_file_name)
                 try:
                     frame.to_csv(csv_file_path, index=False)
-                    if printing is True:
+                    if PRINTING:
                         print(f"Saved DataFrame to {csv_file_path}")
                 except Exception as e:
-                    if printing is True:
+                    if PRINTING:
                         print(f"Error saving DataFrame to CSV: {e}")
                     sys.exit(1)
                 # JSON
                 json_file_name = f"{current_date}_{frame_name}.json"
-                json_file_path = os.path.join(dir_output, json_file_name)
+                json_file_path = os.path.join(OUTPUT_DIR, json_file_name)
                 try:
                     frame.to_json(json_file_path, orient='records')
-                    if printing is True:
+                    if PRINTING:
                         print(f"Saved DataFrame to {json_file_path}")
                 except Exception as e:
-                    if printing is True:
+                    if PRINTING:
                         print(f"Error saving DataFrame to JSON: {e}")
                     sys.exit(1)
             else:
-                if printing is True:
+                if PRINTING:
                     print(f"Invalid DataFrame for key {frame_name}.")
                 sys.exit(1)
     else:
-        if printing is True:
+        if PRINTING:
             print("Invalid dictionary provided.")
         sys.exit(1)
 
 
-def json_files_to_dataframes(directory):
+def load_from_json():
     '''
     Returning a Dictionary of all pandas.DataFrames from one directory
     '''
     dataframes = {}
-    for filename in os.listdir(directory):
+    for filename in os.listdir(DATA_DIR):
         if filename.endswith(".json"):
             json_name = os.path.splitext(filename)[0]
-            file_path = os.path.join(directory, filename)
+            file_path = os.path.join(DATA_DIR, filename)
             with open(file_path, 'r') as file:
                 data = json.load(file)
                 dataframes[json_name] = pd.DataFrame(data)
@@ -107,7 +102,7 @@ def json_files_to_dataframes(directory):
 
 def extract_column(df, column_name):
     '''
-    Extracting one specific column
+    Extracts and normalizes a specified column containing nested JSON data from a given DataFrame.
     '''
     df_copy = df.copy()
 
@@ -135,9 +130,9 @@ def extract_column(df, column_name):
     
     return combined_df
 
-def formatting_dataframe(df, list_of_columns, printing):
+def formatting_bescha(df, list_of_columns):
     '''
-    formatting a whole pandas.DataFrame
+    formatting bescha. Getting all the information out of "releases"
     '''
     exploded_df = df.explode('releases')
 
@@ -145,7 +140,7 @@ def formatting_dataframe(df, list_of_columns, printing):
 
     new_list = ['_' + kw for kw in list_of_columns]
     for column in list_of_columns:
-        if printing is True:
+        if PRINTING:
             print(f"Starting extraction for column: {column}")
 
         start_time = time.time()
@@ -153,7 +148,7 @@ def formatting_dataframe(df, list_of_columns, printing):
         end_time = time.time()
 
         elapsed_time = end_time - start_time
-        if printing is True:
+        if PRINTING:
             print(f"Time taken for extract_2 with column {column}: {elapsed_time:.2f} seconds")
 
         pattern = re.compile(r'^_[2-9]|\d_{2,}')
@@ -170,25 +165,36 @@ def formatting_dataframe(df, list_of_columns, printing):
     
     return result_df
 
-def get_dataframes(data_dir, output_dir=None, printing=False):
+def get_dataframes_from_json(data_dir, output_dir=None, printing=False):
     '''
     Processes data and returns DataFrames.
     '''
+    global DATA_DIR, OUTPUT_DIR, PRINTING
+    DATA_DIR = data_dir
+    OUTPUT_DIR = output_dir
+    PRINTING = printing
 
-    if not isinstance(printing, bool):
+    if DATA_DIR is None:
+        raise ValueError("The 'data_dir' parameter must be given.")
+
+    if not isinstance(PRINTING, bool):
         raise ValueError("The 'printing' parameter must be a boolean value.")
     
-    data_dir = start_logs(data_dir, output_dir, printing)
+    data_dir = check_paths()
 
-    dataframes = json_files_to_dataframes(data_dir)
+    dataframes = load_from_json()
 
-    first_layer_columns = ['parties', 'awards', 'contracts', 'tender.items', 'tender.lots']
+    columns_to_extract = ['parties', 'awards', 'contracts', 'tender.items', 'tender.lots']
 
-    dataframes["overView_Bescha"] = formatting_dataframe(dataframes["overView_Bescha"], first_layer_columns, printing)
+    dataframes["overView_Bescha"] = formatting_bescha(dataframes["overView_Bescha"], columns_to_extract)
 
-    if printing is True:
+    if printing:
         print(f"Bescha shape: {dataframes['overView_Bescha'].shape}")
 
-    save_new_files(dataframes, output_dir, printing)
+    save_new_files(dataframes)
 
-    return dataframes
+    return dataframes 
+
+
+if __name__ == "__main__":
+    get_dataframes_from_json(DATA_DIR, OUTPUT_DIR, PRINTING)
