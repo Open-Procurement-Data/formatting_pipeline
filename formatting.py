@@ -33,7 +33,6 @@ def check_paths():
             raise ValueError(f"Input directory does not exist: {data_dir}")
         if PRINTING:
             print(f"Input directory exists: {data_dir}")
-        return data_dir
     except Exception as e:
         if PRINTING:
             print(f"Error accessing input directory: {e}")
@@ -180,7 +179,7 @@ def get_dataframes_from_json(data_dir, output_dir=None, printing=False):
     if not isinstance(PRINTING, bool):
         raise ValueError("The 'printing' parameter must be a boolean value.")
     
-    data_dir = check_paths()
+    check_paths()
 
     dataframes = load_from_json()
 
