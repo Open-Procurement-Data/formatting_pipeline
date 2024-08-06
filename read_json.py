@@ -1,13 +1,12 @@
 import json
 import os
 import pandas as pd
-import pipeline
-import new_dataframes 
 
 def json_files_to_dataframes(directory):
     '''
     Returning a Dictionary of all pandas.DataFrames from one directory
     '''
+    print(f"Loading data from this directory: {directory}")
     dataframes = {}
     for filename in os.listdir(directory):
         if filename.endswith(".json"):

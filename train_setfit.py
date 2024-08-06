@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 from datasets import Dataset
 
 # use case:
-# python3 train_setfit.py -i ../new_data -c ../cpv_exel/cpv_2008_ver_2013.xlsx -s ../formatting_pipeline --test
+# python3 train_setfit.py -i ../new_data -c ../cpv_exel/cpv_2008_ver_2013.xlsx -s ../formatting_pipeline --load --test
 
 def import_scripts(path):
     '''
@@ -19,7 +19,8 @@ def import_scripts(path):
     sys.path.append(path)
     import formatting
     import new_dataframes 
-    return formatting, new_dataframes
+    import read_json
+    return formatting, new_dataframes, read_json
 
 def create_test_df(cpv_numbers, df):
     '''
@@ -47,7 +48,7 @@ def create_test_df(cpv_numbers, df):
                 entries_count = entries_count + 1
                 test_ted_df = test_ted_df.append(row)
 
-    print(f"Test DataFrame has {test_ted_df.shape(0)} rows")
+    print(f"Test DataFrame has {test_ted_df.shape[0]} rows")
 
     return test_ted_df
 
@@ -57,7 +58,8 @@ def main():
     parser.add_argument("-i", "--input", type=str, help="The directory path for the dataset")
     parser.add_argument("-c", "--cpv", type=str, help="The file path for the cpv numbers")
     parser.add_argument("-s", "--scripts", type=str, help="The path for the new_dataframe and formatting scripts")
-    parser.add_argument("-t", "--test", action="store_true", help="Set to True to use a smaler dataset for test purpouses only", default=False)
+    parser.add_argument("-l", "--load", action="store_true", help="Set to True to load the already formatted json dataset.", default=False)
+    parser.add_argument("-t", "--test", action="store_true", help="Set to True to use a smaler dataset for test purpouses only.", default=False)
 
     args = parser.parse_args()
 
@@ -70,13 +72,22 @@ def main():
     if not isinstance(args.test, bool):
         raise ValueError("The 'test' parameter must be a boolean value.")
     
+    formatting, new_dataframes, read_json = import_scripts(args.scripts)
 
-    formatting, new_dataframes = import_scripts(args.scripts)
+    if args.load:
+        new_dataframes.CPV_DIR = args.cpv
+        new_dataframes.OUTPUT_DIR = None
+        new_dataframes.PRINTING = True
+        cpv_numbers = new_dataframes.check_dir_get_cpv()
 
-    # formatting both datasets
-    dataframes = formatting.get_dataframes_from_json(data_dir=args.input, output_dir=None, printing=True)
+        df = new_dataframes.extract_cpv_codes(cpv_numbers, 'CODE')
 
-    bescha_new, ted_new, cpv_numbers = new_dataframes.get_equal_dataframes(dataframes, args.cpv, output_dir=None, printing=True)
+        bescha_new, ted_new = read_json.json_files_to_dataframes("output_for_setfit")
+    else:
+        # formatting both datasets
+        dataframes = formatting.get_dataframes_from_json(data_dir=args.input, output_dir=None, printing=True)
+
+        bescha_new, ted_new, cpv_numbers = new_dataframes.get_equal_dataframes(dataframes, args.cpv, output_dir=None, printing=True)
 
     # get new smaller dataframe
     if args.test:
@@ -106,7 +117,7 @@ def main():
     labels = cpv_numbers["CODE"].tolist()
     labels = [code[:-2] for code in labels]
     model = SetFitModel.from_pretrained(
-        "BAAI/bge-small-en-v1.5",
+        "sentence-transformers/paraphrase-mpnet-base-v2",
         labels=labels,
     )
 
