@@ -46,7 +46,7 @@ def create_test_df(cpv_numbers, df):
         for index, row in df.iterrows():
             if row['tender_cpv_number'] == code and entries_count <= 4:
                 entries_count = entries_count + 1
-                test_ted_df = test_ted_df.append(row)
+                test_ted_df = test_ted_df._append(row)
 
     print(f"Test DataFrame has {test_ted_df.shape[0]} rows")
 
