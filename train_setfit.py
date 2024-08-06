@@ -145,7 +145,7 @@ def main():
     for index, row in test_df.iterrows():
         preds = model.predict(row["tender_description"])
         print(f"Predictions: {preds}")
-        print(f"Real Classifications: {row["tender_cpv_number"]}")
+        print(f'Real Classifications: {row["tender_cpv_number"]}')
         print("----------------------------")
 
 
