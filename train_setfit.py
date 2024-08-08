@@ -3,14 +3,45 @@ import pandas as pd
 import numpy as np
 import argparse
 import logging
+import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE
 # --- SetFit --- #
 from datasets import load_dataset
-from setfit import SetFitModel, Trainer, TrainingArguments, sample_dataset
+from setfit import SetFitModel, Trainer, TrainingArguments
 from sklearn.model_selection import train_test_split
 from datasets import Dataset
+from transformers.trainer_callback import TrainerCallback, TrainerState, TrainerControl
 
 # use case:
 # python3 train_setfit.py -i ../new_data -c ../cpv_exel/cpv_2008_ver_2013.xlsx -s ../formatting_pipeline --load --test
+
+class EmbeddingPlotCallback(TrainerCallback):
+    """Simple embedding plotting callback that plots the tSNE of the training and evaluation datasets throughout training."""
+    
+    def __init__(self, train_dataset, eval_dataset):
+        self.train_dataset = train_dataset
+        self.eval_dataset = eval_dataset
+
+    def on_evaluate(self, args, state, control, model, **kwargs):
+        train_embeddings = model.encode(self.train_dataset["tender_description"])
+        eval_embeddings = model.encode(self.eval_dataset["tender_description"])
+
+        fig, (train_ax, eval_ax) = plt.subplots(ncols=2)
+
+        train_perplexity = min(30, len(self.train_dataset["tender_description"]) - 1)
+        eval_perplexity = min(30, len(self.eval_dataset["tender_description"]) - 1)
+
+
+        train_X = TSNE(n_components=2, perplexity=train_perplexity).fit_transform(train_embeddings)
+        train_ax.scatter(*train_X.T, c=self.train_dataset["division"], label=self.train_dataset["division"])
+        train_ax.set_title("Training embeddings")
+
+        eval_X = TSNE(n_components=2, perplexity=eval_perplexity).fit_transform(eval_embeddings)
+        eval_ax.scatter(*eval_X.T, c=self.eval_dataset["division"], label=self.eval_dataset["division"])
+        eval_ax.set_title("Evaluation embeddings")
+
+        fig.suptitle(f"tSNE of training and evaluation embeddings at step {state.global_step} of {state.max_steps}.")
+        fig.savefig(f"logs/step_{state.global_step}.png")
 
 def import_scripts(path):
     '''
@@ -28,15 +59,15 @@ def create_test_df(cpv_numbers, df):
         Divisions with more than 2 entries are searched for and the new DataFrame is filled with them.
     '''
     print(f"Starting to create a test DataFrame")
-    division_codes = cpv_numbers[cpv_numbers['classification'] == "division"]["CODE"].tolist()
-    division_codes = [code[:-2] for code in division_codes]
+    division_codes = cpv_numbers[cpv_numbers['classification'] == "division"]["division"].tolist()
+    #division_codes = [code[:-2] for code in division_codes]
     divisions_with_more_entries = []
 
     for code in division_codes:
-        count = df[df['tender_cpv_number'] == code].shape[0]
-        if count > 2:
+        count = df[df['tender_cpv_number'].str[:2] == code].shape[0]
+        if count > 6:
             divisions_with_more_entries.append(code)
-    print(f"Found {len(divisions_with_more_entries)} divisions with more than 2 entries.")
+    print(f"Found {len(divisions_with_more_entries)} divisions with more than 6 entries.")
 
     test_ted_df = pd.DataFrame
     test_ted_df = pd.DataFrame(columns=df.columns)
@@ -44,7 +75,7 @@ def create_test_df(cpv_numbers, df):
     for code in divisions_with_more_entries:
         entries_count = 0
         for index, row in df.iterrows():
-            if row['tender_cpv_number'] == code and entries_count <= 4:
+            if row['tender_cpv_number'][:2] == code and entries_count <= 4:
                 entries_count = entries_count + 1
                 test_ted_df = test_ted_df._append(row)
 
@@ -90,8 +121,9 @@ def main():
         bescha_new, ted_new, cpv_numbers = new_dataframes.get_equal_dataframes(dataframes, args.cpv, output_dir=None, printing=True)
 
     # make an additional column for the divisions
-    bescha_new["division"] = bescha_new['tender_cpv_number'].str[:2]
-    ted_new["division"] = ted_new['tender_cpv_number'].str[:2]
+    bescha_new['tender_cpv_number'] = bescha_new['tender_cpv_number'].fillna('')
+    bescha_new["division"] = bescha_new['tender_cpv_number'].str[:2].apply(lambda x: int(x) if x.isdigit() else None)
+    ted_new["division"] = ted_new['tender_cpv_number'].str[:2].apply(lambda x: int(x) if x.isdigit() else None)
 
     # get new smaller dataframe
     if args.test:
@@ -127,18 +159,19 @@ def main():
 
     setfit_args = TrainingArguments(
         batch_size=16,
-        num_epochs=4,
+        num_epochs=10,
         evaluation_strategy="epoch",
         save_strategy="epoch",
         load_best_model_at_end=True,
     )
+    embedding_plot_callback = EmbeddingPlotCallback(train_dataset=train_dataset, eval_dataset=val_dataset)
 
     trainer = Trainer(
         model=model,
         args=setfit_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
-        metric="accuracy",
+        callbacks=[embedding_plot_callback],
         column_mapping={"tender_description": "text", "division": "label"}  # Map dataset columns to text/label expected by trainer
     )
 
