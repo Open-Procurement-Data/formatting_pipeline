@@ -89,6 +89,10 @@ def main():
 
         bescha_new, ted_new, cpv_numbers = new_dataframes.get_equal_dataframes(dataframes, args.cpv, output_dir=None, printing=True)
 
+    # make an additional column for the divisions
+    bescha_new["division"] = bescha_new['tender_cpv_number'].str[:2]
+    ted_new["division"] = ted_new['tender_cpv_number'].str[:2]
+
     # get new smaller dataframe
     if args.test:
         test_ted_df = create_test_df(cpv_numbers, ted_new)
@@ -114,8 +118,8 @@ def main():
     test_dataset = Dataset.from_pandas(test_df)
 
     # setfit model
-    labels = cpv_numbers["CODE"].tolist()
-    labels = [code[:-2] for code in labels]
+    labels = cpv_numbers["division"].tolist()
+    #labels = [code[:-2] for code in labels]
     model = SetFitModel.from_pretrained(
         "sentence-transformers/paraphrase-mpnet-base-v2",
         labels=labels,
@@ -135,7 +139,7 @@ def main():
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         metric="accuracy",
-        column_mapping={"tender_description": "text", "tender_cpv_number": "label"}  # Map dataset columns to text/label expected by trainer
+        column_mapping={"tender_description": "text", "division": "label"}  # Map dataset columns to text/label expected by trainer
     )
 
     trainer.train()
@@ -145,7 +149,7 @@ def main():
     for index, row in test_df.iterrows():
         preds = model.predict(row["tender_description"])
         print(f"Predictions: {preds}")
-        print(f'Real Classifications: {row["tender_cpv_number"]}')
+        print(f'Real Classifications: {row["division"]}')
         print("----------------------------")
 
 
